@@ -25,6 +25,7 @@ export interface GroupMember {
   email: string;
   role: "owner" | "member";
   joinedAt: string;
+  color?: string;
 }
 
 export interface Group {

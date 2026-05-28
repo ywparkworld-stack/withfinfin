@@ -10,6 +10,7 @@ import {
   deleteTransaction,
   getBudgets,
   regenerateInviteCode,
+  updateMemberColor,
 } from "@/lib/firestore";
 import type { Group, Transaction, Budget, Category } from "@/types";
 import { CATEGORY_LABELS } from "@/types";
@@ -17,6 +18,7 @@ import AuthGuard from "@/components/layout/AuthGuard";
 import Navbar from "@/components/layout/Navbar";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import TransactionList from "@/components/transactions/TransactionList";
+import ColorPicker from "@/components/members/ColorPicker";
 
 interface SummaryCardProps {
   label: string;
@@ -50,6 +52,8 @@ export default function GroupDetailPage({
   const [showInvite, setShowInvite] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [colorPickerOpenFor, setColorPickerOpenFor] = useState<string | null>(null);
+  const [savingColor, setSavingColor] = useState(false);
   const [activeTab, setActiveTab] = useState<"transactions" | "budget">("transactions");
   const [loading, setLoading] = useState(true);
 
@@ -133,6 +137,31 @@ export default function GroupDetailPage({
 
   const isOwner = user?.uid === group?.createdBy;
 
+  const memberColorMap: Record<string, string> = {};
+  if (group) {
+    for (const m of group.members) {
+      if (m.color) memberColorMap[m.uid] = m.color;
+    }
+  }
+
+  const handleColorChange = async (color: string) => {
+    if (!user || !group) return;
+    setSavingColor(true);
+    await updateMemberColor(groupId, user.uid, color, group.members);
+    setGroup((prev) =>
+      prev
+        ? {
+            ...prev,
+            members: prev.members.map((m) =>
+              m.uid === user.uid ? { ...m, color } : m
+            ),
+          }
+        : prev
+    );
+    setSavingColor(false);
+    setColorPickerOpenFor(null);
+  };
+
   if (loading) {
     return (
       <AuthGuard>
@@ -166,8 +195,20 @@ export default function GroupDetailPage({
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{group.name}</h1>
-              <p className="text-sm text-gray-400 mt-0.5">
-                {group.members.map((m) => m.displayName).join(", ")}
+              <p className="text-sm mt-0.5 flex flex-wrap gap-x-1">
+                {group.members.map((m, i) => (
+                  <span key={m.uid}>
+                    <span
+                      style={m.color ? { color: m.color } : undefined}
+                      className={m.color ? "font-medium" : "text-gray-400"}
+                    >
+                      {m.displayName}
+                    </span>
+                    {i < group.members.length - 1 && (
+                      <span className="text-gray-300">, </span>
+                    )}
+                  </span>
+                ))}
               </p>
             </div>
             <button
@@ -263,6 +304,7 @@ export default function GroupDetailPage({
                 transactions={transactions}
                 onDelete={handleDelete}
                 currentUserId={user?.uid}
+                memberColors={memberColorMap}
               />
             </div>
           ) : (
@@ -354,20 +396,64 @@ export default function GroupDetailPage({
             <h3 className="text-sm font-semibold text-gray-700 mb-3">
               メンバー（{group.members.length}人）
             </h3>
-            <ul className="space-y-2">
-              {group.members.map((m) => (
-                <li key={m.uid} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-bold">
-                      {m.displayName[0]}
+            <ul className="space-y-1">
+              {group.members.map((m) => {
+                const isMe = m.uid === user?.uid;
+                const isPickerOpen = colorPickerOpenFor === m.uid;
+                return (
+                  <li key={m.uid} className="rounded-lg">
+                    <div className="flex items-center justify-between py-2 px-1">
+                      <div className="flex items-center gap-2">
+                        {/* Avatar circle with member color */}
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
+                          style={{
+                            backgroundColor: m.color ?? "#94A3B8",
+                          }}
+                        >
+                          {m.displayName[0]}
+                        </div>
+                        <span
+                          className="text-sm font-medium"
+                          style={m.color ? { color: m.color } : { color: "#374151" }}
+                        >
+                          {m.displayName}
+                          {isMe && (
+                            <span className="text-xs text-gray-400 font-normal ml-1">（自分）</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">
+                          {m.role === "owner" ? "オーナー" : "メンバー"}
+                        </span>
+                        {isMe && (
+                          <button
+                            onClick={() =>
+                              setColorPickerOpenFor(isPickerOpen ? null : m.uid)
+                            }
+                            className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 rounded px-2 py-0.5"
+                          >
+                            色を変更
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-sm text-gray-700">{m.displayName}</span>
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {m.role === "owner" ? "オーナー" : "メンバー"}
-                  </span>
-                </li>
-              ))}
+                    {isPickerOpen && isMe && (
+                      <div className="px-3 pb-3">
+                        <p className="text-xs text-gray-400 mb-1">あなたの表示色を選んでください</p>
+                        <ColorPicker
+                          value={m.color}
+                          onChange={handleColorChange}
+                        />
+                        {savingColor && (
+                          <p className="text-xs text-gray-400 mt-2">保存中...</p>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </main>
