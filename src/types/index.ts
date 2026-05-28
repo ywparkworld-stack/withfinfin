@@ -35,6 +35,7 @@ export interface Group {
   createdBy: string;
   createdAt: string;
   currency: string;
+  inviteCode: string;
 }
 
 export interface Transaction {

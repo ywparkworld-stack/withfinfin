@@ -36,7 +36,7 @@ export default function GroupsPage() {
       role: "owner",
       joinedAt: new Date().toISOString(),
     };
-    const id = await createGroup(name.trim(), description.trim(), owner);
+    const { id, inviteCode } = await createGroup(name.trim(), description.trim(), owner);
     setGroups((prev) => [
       ...prev,
       {
@@ -47,6 +47,7 @@ export default function GroupsPage() {
         createdBy: user.uid,
         createdAt: new Date().toISOString(),
         currency: "JPY",
+        inviteCode,
       },
     ]);
     setName("");
@@ -62,12 +63,20 @@ export default function GroupsPage() {
         <main className="max-w-2xl mx-auto p-6">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-900">グループ一覧</h1>
-            <button
-              onClick={() => setShowForm(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-            >
-              + 新しいグループ
-            </button>
+            <div className="flex gap-2">
+              <Link
+                href="/join"
+                className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50"
+              >
+                コードで参加
+              </Link>
+              <button
+                onClick={() => setShowForm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+              >
+                + 新規作成
+              </button>
+            </div>
           </div>
 
           {showForm && (

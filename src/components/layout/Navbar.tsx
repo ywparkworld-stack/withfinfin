@@ -25,6 +25,9 @@ export default function Navbar() {
         <Link href="/groups" className="text-sm text-gray-600 hover:text-gray-900">
           グループ
         </Link>
+        <Link href="/join" className="text-sm text-gray-600 hover:text-gray-900">
+          コードで参加
+        </Link>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-500">{user?.displayName ?? user?.email}</span>
           <button

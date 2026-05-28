@@ -9,6 +9,7 @@ import {
   addTransaction,
   deleteTransaction,
   getBudgets,
+  regenerateInviteCode,
 } from "@/lib/firestore";
 import type { Group, Transaction, Budget, Category } from "@/types";
 import { CATEGORY_LABELS } from "@/types";
@@ -46,6 +47,9 @@ export default function GroupDetailPage({
     new Date().toISOString().slice(0, 7)
   );
   const [showForm, setShowForm] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<"transactions" | "budget">("transactions");
   const [loading, setLoading] = useState(true);
 
@@ -111,6 +115,23 @@ export default function GroupDetailPage({
     await deleteTransaction(groupId, txId);
     setTransactions((prev) => prev.filter((t) => t.id !== txId));
   };
+
+  const handleCopyCode = async () => {
+    if (!group?.inviteCode) return;
+    await navigator.clipboard.writeText(group.inviteCode);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
+
+  const handleRegenerate = async () => {
+    if (!group) return;
+    setRegenerating(true);
+    const newCode = await regenerateInviteCode(groupId);
+    setGroup((prev) => prev ? { ...prev, inviteCode: newCode } : prev);
+    setRegenerating(false);
+  };
+
+  const isOwner = user?.uid === group?.createdBy;
 
   if (loading) {
     return (
@@ -284,9 +305,55 @@ export default function GroupDetailPage({
             </div>
           )}
 
+          {/* Invite code */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">招待コード</h3>
+              <button
+                onClick={() => setShowInvite((v) => !v)}
+                className="text-xs text-blue-600 hover:text-blue-700"
+              >
+                {showInvite ? "隠す" : "表示する"}
+              </button>
+            </div>
+            {showInvite ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 text-center font-mono text-2xl font-bold tracking-widest bg-gray-50 rounded-lg py-3 border border-gray-200 text-gray-800">
+                    {group.inviteCode ?? "——"}
+                  </span>
+                  <button
+                    onClick={handleCopyCode}
+                    className="px-4 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 min-w-[72px]"
+                  >
+                    {codeCopied ? "コピー済" : "コピー"}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 text-center">
+                  このコードを共有するとグループに参加できます
+                </p>
+                {isOwner && (
+                  <button
+                    onClick={handleRegenerate}
+                    disabled={regenerating}
+                    className="w-full py-2 text-sm text-red-500 hover:text-red-700 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {regenerating ? "更新中..." : "コードを再発行する"}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">
+                コードを共有してメンバーを招待できます
+              </p>
+            )}
+          </div>
+
           {/* Members */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">メンバー</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">
+              メンバー（{group.members.length}人）
+            </h3>
             <ul className="space-y-2">
               {group.members.map((m) => (
                 <li key={m.uid} className="flex items-center justify-between">

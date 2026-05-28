@@ -9,18 +9,26 @@ import {
   query,
   where,
   orderBy,
-  Timestamp,
   setDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { Group, GroupMember, Transaction, Budget } from "@/types";
+
+// Invite code: 8 uppercase alphanumeric chars, excluding ambiguous chars (0, O, I, 1, L)
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+export function generateInviteCode(): string {
+  return Array.from({ length: 8 }, () =>
+    CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]
+  ).join("");
+}
 
 // Groups
 export async function createGroup(
   name: string,
   description: string,
   owner: GroupMember
-): Promise<string> {
+): Promise<{ id: string; inviteCode: string }> {
+  const inviteCode = generateInviteCode();
   const ref = await addDoc(collection(db, "groups"), {
     name,
     description,
@@ -28,16 +36,12 @@ export async function createGroup(
     createdBy: owner.uid,
     createdAt: new Date().toISOString(),
     currency: "JPY",
+    inviteCode,
   });
-  return ref.id;
+  return { id: ref.id, inviteCode };
 }
 
 export async function getUserGroups(uid: string): Promise<Group[]> {
-  const q = query(
-    collection(db, "groups"),
-    where("members", "array-contains", { uid } as Partial<GroupMember>)
-  );
-  // array-contains with object requires exact match; use a different approach
   const all = await getDocs(collection(db, "groups"));
   return all.docs
     .filter((d) => {
@@ -53,11 +57,28 @@ export async function getGroup(groupId: string): Promise<Group | null> {
   return { id: snap.id, ...snap.data() } as Group;
 }
 
+export async function getGroupByInviteCode(code: string): Promise<Group | null> {
+  const q = query(
+    collection(db, "groups"),
+    where("inviteCode", "==", code.toUpperCase())
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() } as Group;
+}
+
 export async function addMemberToGroup(
   groupId: string,
   members: GroupMember[]
 ): Promise<void> {
   await updateDoc(doc(db, "groups", groupId), { members });
+}
+
+export async function regenerateInviteCode(groupId: string): Promise<string> {
+  const newCode = generateInviteCode();
+  await updateDoc(doc(db, "groups", groupId), { inviteCode: newCode });
+  return newCode;
 }
 
 // Transactions
