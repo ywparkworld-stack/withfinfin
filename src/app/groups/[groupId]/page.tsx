@@ -20,20 +20,6 @@ import TransactionForm from "@/components/transactions/TransactionForm";
 import TransactionList from "@/components/transactions/TransactionList";
 import ColorPicker from "@/components/members/ColorPicker";
 
-interface SummaryCardProps {
-  label: string;
-  amount: number;
-  color: string;
-}
-
-function SummaryCard({ label, amount, color }: SummaryCardProps) {
-  return (
-    <div className={`rounded-xl p-4 ${color}`}>
-      <p className="text-sm font-medium opacity-80">{label}</p>
-      <p className="text-2xl font-bold mt-1">{amount.toLocaleString("ja-JP")}円</p>
-    </div>
-  );
-}
 
 export default function GroupDetailPage({
   params,
@@ -191,81 +177,94 @@ export default function GroupDetailPage({
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <main className="max-w-2xl mx-auto p-6 space-y-6">
-          {/* Header */}
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{group.name}</h1>
-              <p className="text-sm mt-0.5 flex flex-wrap gap-x-1">
-                {group.members.map((m, i) => (
-                  <span key={m.uid}>
-                    <span
-                      style={m.color ? { color: m.color } : undefined}
-                      className={m.color ? "font-medium" : "text-gray-400"}
-                    >
-                      {m.displayName}
+          {/* Balance hero card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 px-6 py-5">
+            {/* Group name + members */}
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h1 className="text-lg font-bold text-gray-900">{group.name}</h1>
+                <p className="text-xs mt-0.5 flex flex-wrap gap-x-1">
+                  {group.members.map((m, i) => (
+                    <span key={m.uid}>
+                      <span
+                        style={m.color ? { color: m.color } : undefined}
+                        className={m.color ? "font-medium" : "text-gray-400"}
+                      >
+                        {m.displayName}
+                      </span>
+                      {i < group.members.length - 1 && (
+                        <span className="text-gray-300">, </span>
+                      )}
                     </span>
-                    {i < group.members.length - 1 && (
-                      <span className="text-gray-300">, </span>
-                    )}
-                  </span>
-                ))}
+                  ))}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowForm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shrink-0"
+              >
+                + 記録
+              </button>
+            </div>
+
+            {/* Month selector */}
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <button
+                onClick={() => {
+                  const d = new Date(selectedMonth + "-01");
+                  d.setMonth(d.getMonth() - 1);
+                  setSelectedMonth(d.toISOString().slice(0, 7));
+                }}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+              >
+                ‹
+              </button>
+              <span className="text-sm font-medium text-gray-600 w-28 text-center">
+                {new Date(selectedMonth + "-01").toLocaleDateString("ja-JP", {
+                  year: "numeric",
+                  month: "long",
+                })}
+              </span>
+              <button
+                onClick={() => {
+                  const d = new Date(selectedMonth + "-01");
+                  d.setMonth(d.getMonth() + 1);
+                  setSelectedMonth(d.toISOString().slice(0, 7));
+                }}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+              >
+                ›
+              </button>
+            </div>
+
+            {/* Total balance */}
+            <div className="text-center mb-5">
+              <p className="text-xs text-gray-400 mb-1">残高</p>
+              <p
+                className="text-4xl font-bold tabular-nums"
+                style={{ color: balance >= 0 ? "#1d4ed8" : "#dc2626" }}
+              >
+                {balance >= 0 ? "+" : ""}
+                {balance.toLocaleString("ja-JP")}
+                <span className="text-xl font-medium ml-1">円</span>
               </p>
             </div>
-            <button
-              onClick={() => setShowForm(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-            >
-              + 記録
-            </button>
-          </div>
 
-          {/* Month selector */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                const d = new Date(selectedMonth + "-01");
-                d.setMonth(d.getMonth() - 1);
-                setSelectedMonth(d.toISOString().slice(0, 7));
-              }}
-              className="p-2 text-gray-400 hover:text-gray-600"
-            >
-              ‹
-            </button>
-            <span className="font-medium text-gray-700">
-              {new Date(selectedMonth + "-01").toLocaleDateString("ja-JP", {
-                year: "numeric",
-                month: "long",
-              })}
-            </span>
-            <button
-              onClick={() => {
-                const d = new Date(selectedMonth + "-01");
-                d.setMonth(d.getMonth() + 1);
-                setSelectedMonth(d.toISOString().slice(0, 7));
-              }}
-              className="p-2 text-gray-400 hover:text-gray-600"
-            >
-              ›
-            </button>
-          </div>
-
-          {/* Summary cards */}
-          <div className="grid grid-cols-3 gap-3">
-            <SummaryCard
-              label="収入"
-              amount={totalIncome}
-              color="bg-green-100 text-green-800"
-            />
-            <SummaryCard
-              label="支出"
-              amount={totalExpense}
-              color="bg-red-100 text-red-800"
-            />
-            <SummaryCard
-              label="残高"
-              amount={balance}
-              color={balance >= 0 ? "bg-blue-100 text-blue-800" : "bg-orange-100 text-orange-800"}
-            />
+            {/* Income / Expense row */}
+            <div className="grid grid-cols-2 divide-x divide-gray-100 border-t border-gray-100 pt-4">
+              <div className="text-center pr-4">
+                <p className="text-xs text-gray-400 mb-0.5">収入</p>
+                <p className="text-lg font-semibold text-green-600 tabular-nums">
+                  +{totalIncome.toLocaleString("ja-JP")}円
+                </p>
+              </div>
+              <div className="text-center pl-4">
+                <p className="text-xs text-gray-400 mb-0.5">支出</p>
+                <p className="text-lg font-semibold text-red-500 tabular-nums">
+                  -{totalExpense.toLocaleString("ja-JP")}円
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Add form modal */}
