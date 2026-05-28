@@ -404,15 +404,6 @@ export default function GroupDetailPage({
                   <li key={m.uid} className="rounded-lg">
                     <div className="flex items-center justify-between py-2 px-1">
                       <div className="flex items-center gap-2">
-                        {/* Avatar circle with member color */}
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                          style={{
-                            backgroundColor: m.color ?? "#94A3B8",
-                          }}
-                        >
-                          {m.displayName[0]}
-                        </div>
                         <span
                           className="text-sm font-medium"
                           style={m.color ? { color: m.color } : { color: "#374151" }}
