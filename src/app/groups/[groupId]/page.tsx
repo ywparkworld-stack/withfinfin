@@ -1,0 +1,310 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { use } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  getGroup,
+  getTransactions,
+  addTransaction,
+  deleteTransaction,
+  getBudgets,
+} from "@/lib/firestore";
+import type { Group, Transaction, Budget, Category } from "@/types";
+import { CATEGORY_LABELS } from "@/types";
+import AuthGuard from "@/components/layout/AuthGuard";
+import Navbar from "@/components/layout/Navbar";
+import TransactionForm from "@/components/transactions/TransactionForm";
+import TransactionList from "@/components/transactions/TransactionList";
+
+interface SummaryCardProps {
+  label: string;
+  amount: number;
+  color: string;
+}
+
+function SummaryCard({ label, amount, color }: SummaryCardProps) {
+  return (
+    <div className={`rounded-xl p-4 ${color}`}>
+      <p className="text-sm font-medium opacity-80">{label}</p>
+      <p className="text-2xl font-bold mt-1">{amount.toLocaleString("ja-JP")}円</p>
+    </div>
+  );
+}
+
+export default function GroupDetailPage({
+  params,
+}: {
+  params: Promise<{ groupId: string }>;
+}) {
+  const { groupId } = use(params);
+  const { user } = useAuth();
+  const [group, setGroup] = useState<Group | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(
+    new Date().toISOString().slice(0, 7)
+  );
+  const [showForm, setShowForm] = useState(false);
+  const [activeTab, setActiveTab] = useState<"transactions" | "budget">("transactions");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([
+      getGroup(groupId),
+      getTransactions(groupId, selectedMonth),
+      getBudgets(groupId, selectedMonth),
+    ]).then(([g, txs, bgs]) => {
+      setGroup(g);
+      setTransactions(txs);
+      setBudgets(bgs);
+      setLoading(false);
+    });
+  }, [groupId, user, selectedMonth]);
+
+  const totalIncome = transactions
+    .filter((t) => t.type === "income")
+    .reduce((s, t) => s + t.amount, 0);
+
+  const totalExpense = transactions
+    .filter((t) => t.type === "expense")
+    .reduce((s, t) => s + t.amount, 0);
+
+  const balance = totalIncome - totalExpense;
+
+  // Expenses by category
+  const expenseByCategory = transactions
+    .filter((t) => t.type === "expense")
+    .reduce<Record<string, number>>((acc, t) => {
+      acc[t.category] = (acc[t.category] ?? 0) + t.amount;
+      return acc;
+    }, {});
+
+  const handleAddTransaction = async (data: {
+    type: "income" | "expense";
+    amount: number;
+    category: Category;
+    description: string;
+    date: string;
+  }) => {
+    if (!user) return;
+    const id = await addTransaction({
+      ...data,
+      groupId,
+      createdBy: user.uid,
+      createdByName: user.displayName ?? user.email ?? "unknown",
+    });
+    const newTx: Transaction = {
+      id,
+      ...data,
+      groupId,
+      createdBy: user.uid,
+      createdByName: user.displayName ?? user.email ?? "unknown",
+      createdAt: new Date().toISOString(),
+    };
+    setTransactions((prev) => [newTx, ...prev]);
+    setShowForm(false);
+  };
+
+  const handleDelete = async (txId: string) => {
+    await deleteTransaction(groupId, txId);
+    setTransactions((prev) => prev.filter((t) => t.id !== txId));
+  };
+
+  if (loading) {
+    return (
+      <AuthGuard>
+        <div className="min-h-screen bg-gray-50">
+          <Navbar />
+          <div className="flex justify-center pt-20">
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        </div>
+      </AuthGuard>
+    );
+  }
+
+  if (!group) {
+    return (
+      <AuthGuard>
+        <div className="min-h-screen bg-gray-50">
+          <Navbar />
+          <p className="text-center pt-20 text-gray-500">グループが見つかりません</p>
+        </div>
+      </AuthGuard>
+    );
+  }
+
+  return (
+    <AuthGuard>
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <main className="max-w-2xl mx-auto p-6 space-y-6">
+          {/* Header */}
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{group.name}</h1>
+              <p className="text-sm text-gray-400 mt-0.5">
+                {group.members.map((m) => m.displayName).join(", ")}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+            >
+              + 記録
+            </button>
+          </div>
+
+          {/* Month selector */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const d = new Date(selectedMonth + "-01");
+                d.setMonth(d.getMonth() - 1);
+                setSelectedMonth(d.toISOString().slice(0, 7));
+              }}
+              className="p-2 text-gray-400 hover:text-gray-600"
+            >
+              ‹
+            </button>
+            <span className="font-medium text-gray-700">
+              {new Date(selectedMonth + "-01").toLocaleDateString("ja-JP", {
+                year: "numeric",
+                month: "long",
+              })}
+            </span>
+            <button
+              onClick={() => {
+                const d = new Date(selectedMonth + "-01");
+                d.setMonth(d.getMonth() + 1);
+                setSelectedMonth(d.toISOString().slice(0, 7));
+              }}
+              className="p-2 text-gray-400 hover:text-gray-600"
+            >
+              ›
+            </button>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-3 gap-3">
+            <SummaryCard
+              label="収入"
+              amount={totalIncome}
+              color="bg-green-100 text-green-800"
+            />
+            <SummaryCard
+              label="支出"
+              amount={totalExpense}
+              color="bg-red-100 text-red-800"
+            />
+            <SummaryCard
+              label="残高"
+              amount={balance}
+              color={balance >= 0 ? "bg-blue-100 text-blue-800" : "bg-orange-100 text-orange-800"}
+            />
+          </div>
+
+          {/* Add form modal */}
+          {showForm && (
+            <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl w-full max-w-md p-6">
+                <h2 className="font-semibold text-gray-900 mb-4">収支を記録</h2>
+                <TransactionForm
+                  onSubmit={handleAddTransaction}
+                  onCancel={() => setShowForm(false)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-white">
+            {(["transactions", "budget"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                  activeTab === tab
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {tab === "transactions" ? "取引一覧" : "カテゴリ別"}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "transactions" ? (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-4">
+              <TransactionList
+                transactions={transactions}
+                onDelete={handleDelete}
+                currentUserId={user?.uid}
+              />
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 divide-y divide-gray-100">
+              {Object.entries(expenseByCategory).length === 0 ? (
+                <p className="text-center py-10 text-gray-400">支出の記録がありません</p>
+              ) : (
+                Object.entries(expenseByCategory)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([cat, amount]) => {
+                    const budget = budgets.find((b) => b.category === cat);
+                    const ratio = budget ? Math.min(amount / budget.amount, 1) : null;
+                    return (
+                      <div key={cat} className="px-4 py-3">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium text-gray-700">
+                            {CATEGORY_LABELS[cat as Category] ?? cat}
+                          </span>
+                          <span className="text-sm text-gray-900 font-semibold">
+                            {amount.toLocaleString("ja-JP")}円
+                            {budget && (
+                              <span className="text-xs text-gray-400 ml-1">
+                                / {budget.amount.toLocaleString("ja-JP")}円
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        {ratio !== null && (
+                          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${ratio >= 1 ? "bg-red-500" : "bg-blue-400"}`}
+                              style={{ width: `${ratio * 100}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          )}
+
+          {/* Members */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">メンバー</h3>
+            <ul className="space-y-2">
+              {group.members.map((m) => (
+                <li key={m.uid} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-bold">
+                      {m.displayName[0]}
+                    </div>
+                    <span className="text-sm text-gray-700">{m.displayName}</span>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {m.role === "owner" ? "オーナー" : "メンバー"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </main>
+      </div>
+    </AuthGuard>
+  );
+}
