@@ -82,7 +82,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-gray-900">グループ</h2>
               <Link href="/groups" className="text-sm text-blue-600 hover:text-blue-700">
-                すべて見る →
+                管理 →
               </Link>
             </div>
             {loading ? (
@@ -101,7 +101,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="grid gap-3">
-                {groups.slice(0, 4).map((g) => (
+                {groups.map((g) => (
                   <Link
                     key={g.id}
                     href={`/groups/${g.id}`}
