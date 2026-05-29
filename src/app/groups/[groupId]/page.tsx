@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { use } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -42,6 +42,12 @@ export default function GroupDetailPage({
   const [savingColor, setSavingColor] = useState(false);
   const [activeTab, setActiveTab] = useState<"transactions" | "budget">("transactions");
   const [loading, setLoading] = useState(true);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const scrollToList = () => {
+    setActiveTab("transactions");
+    setTimeout(() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -237,18 +243,22 @@ export default function GroupDetailPage({
               </button>
             </div>
 
-            {/* Total balance */}
-            <div className="text-center mb-5">
+            {/* Total balance — tap to jump to history */}
+            <button
+              onClick={scrollToList}
+              className="w-full text-center mb-5 group"
+            >
               <p className="text-xs text-gray-400 mb-1">残高</p>
               <p
-                className="text-4xl font-bold tabular-nums"
+                className="text-4xl font-bold tabular-nums group-active:opacity-70 transition-opacity"
                 style={{ color: balance >= 0 ? "#1d4ed8" : "#dc2626" }}
               >
                 {balance >= 0 ? "+" : ""}
                 {balance.toLocaleString("ja-JP")}
                 <span className="text-xl font-medium ml-1">円</span>
               </p>
-            </div>
+              <p className="text-xs text-gray-300 mt-1">履歴を見る ↓</p>
+            </button>
 
             {/* Income / Expense row */}
             <div className="grid grid-cols-2 divide-x divide-gray-100 border-t border-gray-100 pt-4">
@@ -281,7 +291,7 @@ export default function GroupDetailPage({
           )}
 
           {/* Tabs */}
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden bg-white">
+          <div ref={listRef} className="flex rounded-lg border border-gray-200 overflow-hidden bg-white">
             {(["transactions", "budget"] as const).map((tab) => (
               <button
                 key={tab}
