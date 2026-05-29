@@ -26,7 +26,7 @@ export default function GroupsScreen() {
 
   useEffect(() => {
     navigation.setOptions({
-      title: "withfinfin",
+      title: "mitH",
       headerRight: () => (
         <TouchableOpacity onPress={handleLogout} style={{ marginRight: 4 }}>
           <Text style={{ color: "#EF4444", fontSize: 14 }}>ログアウト</Text>

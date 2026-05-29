@@ -49,7 +49,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-        <Text style={styles.logo}>withfinfin</Text>
+        <Text style={styles.logo}>mitH</Text>
         <Text style={styles.subtitle}>みんなで管理するお金アプリ</Text>
 
         {/* Mode toggle */}

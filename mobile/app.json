@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "withfinfin",
-    "slug": "withfinfin",
+    "name": "mitH",
+    "slug": "mith",
     "version": "1.0.0",
-    "scheme": "withfinfin",
+    "scheme": "mith",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,7 +13,7 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png"
       },
-      "package": "com.withfinfin.app"
+      "package": "com.mith.app"
     },
     "plugins": [
       "expo-router"

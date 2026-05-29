@@ -16,7 +16,7 @@ export default function Navbar() {
   return (
     <nav className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
       <Link href="/dashboard" className="text-xl font-bold text-blue-600">
-        withfinfin
+        mitH
       </Link>
       <div className="flex items-center gap-4">
         <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">

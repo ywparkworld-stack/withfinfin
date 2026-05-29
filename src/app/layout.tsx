@@ -8,7 +8,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "withfinfin",
+  title: "mitH",
   description: "みんなで管理するお金アプリ",
 };
 
