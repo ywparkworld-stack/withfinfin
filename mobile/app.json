@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "withfinfin",
+    "slug": "withfinfin",
+    "version": "1.0.0",
+    "scheme": "withfinfin",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png"
+      },
+      "package": "com.withfinfin.app"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
