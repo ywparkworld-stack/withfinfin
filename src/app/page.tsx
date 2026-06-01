@@ -1,17 +1,17 @@
 "use client";
 
-import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useProfile } from "@/hooks/useProfile";
 
 export default function RootPage() {
-  const { user, loading } = useAuth();
+  const { profile, loading } = useProfile();
   const router = useRouter();
 
   useEffect(() => {
     if (loading) return;
-    router.replace(user ? "/dashboard" : "/login");
-  }, [user, loading, router]);
+    router.replace(profile ? "/dashboard" : "/setup");
+  }, [profile, loading, router]);
 
   return null;
 }

@@ -1,9 +1,9 @@
 import { Redirect } from "expo-router";
-import { useAuth } from "../hooks/useAuth";
+import { useProfile } from "../hooks/useProfile";
 import { View, ActivityIndicator } from "react-native";
 
 export default function Index() {
-  const { user, loading } = useAuth();
+  const { profile, loading } = useProfile();
 
   if (loading) {
     return (
@@ -13,5 +13,5 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={user ? "/(app)/groups" : "/(auth)/login"} />;
+  return <Redirect href={profile ? "/(app)/groups" : "/setup"} />;
 }

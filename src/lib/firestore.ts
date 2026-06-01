@@ -87,6 +87,18 @@ export async function updateMemberColor(
   await updateDoc(doc(db, "groups", groupId), { members: updated });
 }
 
+export async function updateMemberDisplayName(
+  groupId: string,
+  uid: string,
+  displayName: string,
+  currentMembers: GroupMember[]
+): Promise<void> {
+  const updated = currentMembers.map((m) =>
+    m.uid === uid ? { ...m, displayName } : m
+  );
+  await updateDoc(doc(db, "groups", groupId), { members: updated });
+}
+
 export async function regenerateInviteCode(groupId: string): Promise<string> {
   const newCode = generateInviteCode();
   await updateDoc(doc(db, "groups", groupId), { inviteCode: newCode });

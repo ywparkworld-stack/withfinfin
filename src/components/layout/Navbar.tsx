@@ -1,17 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useProfile } from "@/hooks/useProfile";
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-
-  const handleLogout = async () => {
-    await logout();
-    router.replace("/login");
-  };
+  const { profile } = useProfile();
 
   return (
     <nav className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
@@ -28,15 +21,9 @@ export default function Navbar() {
         <Link href="/join" className="text-sm text-gray-600 hover:text-gray-900">
           コードで参加
         </Link>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">{user?.displayName ?? user?.email}</span>
-          <button
-            onClick={handleLogout}
-            className="text-sm text-red-500 hover:text-red-700"
-          >
-            ログアウト
-          </button>
-        </div>
+        {profile && (
+          <span className="text-sm text-gray-500">{profile.displayName}</span>
+        )}
       </div>
     </nav>
   );

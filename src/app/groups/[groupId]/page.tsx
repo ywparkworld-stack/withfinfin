@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { use } from "react";
-import { useAuth } from "@/hooks/useAuth";
 import {
   getGroup,
   getTransactions,
@@ -11,15 +10,15 @@ import {
   getBudgets,
   regenerateInviteCode,
   updateMemberColor,
+  updateMemberDisplayName,
 } from "@/lib/firestore";
 import type { Group, Transaction, Budget, Category } from "@/types";
 import { CATEGORY_LABELS } from "@/types";
-import AuthGuard from "@/components/layout/AuthGuard";
 import Navbar from "@/components/layout/Navbar";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import TransactionList from "@/components/transactions/TransactionList";
 import ColorPicker from "@/components/members/ColorPicker";
-
+import { useProfile } from "@/hooks/useProfile";
 
 export default function GroupDetailPage({
   params,
@@ -27,7 +26,7 @@ export default function GroupDetailPage({
   params: Promise<{ groupId: string }>;
 }) {
   const { groupId } = use(params);
-  const { user } = useAuth();
+  const { profile } = useProfile();
   const [group, setGroup] = useState<Group | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -40,6 +39,9 @@ export default function GroupDetailPage({
   const [regenerating, setRegenerating] = useState(false);
   const [colorPickerOpenFor, setColorPickerOpenFor] = useState<string | null>(null);
   const [savingColor, setSavingColor] = useState(false);
+  const [nameEditOpen, setNameEditOpen] = useState(false);
+  const [editingName, setEditingName] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const [activeTab, setActiveTab] = useState<"transactions" | "budget">("transactions");
   const [loading, setLoading] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
@@ -50,7 +52,7 @@ export default function GroupDetailPage({
   };
 
   useEffect(() => {
-    if (!user) return;
+    if (!profile) return;
     Promise.all([
       getGroup(groupId),
       getTransactions(groupId, selectedMonth),
@@ -61,7 +63,7 @@ export default function GroupDetailPage({
       setBudgets(bgs);
       setLoading(false);
     });
-  }, [groupId, user, selectedMonth]);
+  }, [groupId, profile, selectedMonth]);
 
   const totalIncome = transactions
     .filter((t) => t.type === "income")
@@ -88,19 +90,19 @@ export default function GroupDetailPage({
     description: string;
     date: string;
   }) => {
-    if (!user) return;
+    if (!profile) return;
     const id = await addTransaction({
       ...data,
       groupId,
-      createdBy: user.uid,
-      createdByName: user.displayName ?? user.email ?? "unknown",
+      createdBy: profile.uid,
+      createdByName: profile.displayName ?? "unknown",
     });
     const newTx: Transaction = {
       id,
       ...data,
       groupId,
-      createdBy: user.uid,
-      createdByName: user.displayName ?? user.email ?? "unknown",
+      createdBy: profile.uid,
+      createdByName: profile.displayName ?? "unknown",
       createdAt: new Date().toISOString(),
     };
     setTransactions((prev) => [newTx, ...prev]);
@@ -127,7 +129,7 @@ export default function GroupDetailPage({
     setRegenerating(false);
   };
 
-  const isOwner = user?.uid === group?.createdBy;
+  const isOwner = profile?.uid === group?.createdBy;
 
   const memberColorMap: Record<string, string> = {};
   if (group) {
@@ -137,15 +139,15 @@ export default function GroupDetailPage({
   }
 
   const handleColorChange = async (color: string) => {
-    if (!user || !group) return;
+    if (!profile || !group) return;
     setSavingColor(true);
-    await updateMemberColor(groupId, user.uid, color, group.members);
+    await updateMemberColor(groupId, profile.uid, color, group.members);
     setGroup((prev) =>
       prev
         ? {
             ...prev,
             members: prev.members.map((m) =>
-              m.uid === user.uid ? { ...m, color } : m
+              m.uid === profile.uid ? { ...m, color } : m
             ),
           }
         : prev
@@ -154,32 +156,45 @@ export default function GroupDetailPage({
     setColorPickerOpenFor(null);
   };
 
+  const handleNameSave = async () => {
+    if (!profile || !group || !editingName.trim()) return;
+    setSavingName(true);
+    await updateMemberDisplayName(groupId, profile.uid, editingName.trim(), group.members);
+    setGroup((prev) =>
+      prev
+        ? {
+            ...prev,
+            members: prev.members.map((m) =>
+              m.uid === profile.uid ? { ...m, displayName: editingName.trim() } : m
+            ),
+          }
+        : prev
+    );
+    setSavingName(false);
+    setNameEditOpen(false);
+  };
+
   if (loading) {
     return (
-      <AuthGuard>
         <div className="min-h-screen bg-gray-50">
           <Navbar />
           <div className="flex justify-center pt-20">
             <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
         </div>
-      </AuthGuard>
     );
   }
 
   if (!group) {
     return (
-      <AuthGuard>
         <div className="min-h-screen bg-gray-50">
           <Navbar />
           <p className="text-center pt-20 text-gray-500">グループが見つかりません</p>
         </div>
-      </AuthGuard>
     );
   }
 
   return (
-    <AuthGuard>
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <main className="max-w-2xl mx-auto p-6 space-y-6">
@@ -312,7 +327,7 @@ export default function GroupDetailPage({
               <TransactionList
                 transactions={transactions}
                 onDelete={handleDelete}
-                currentUserId={user?.uid}
+                currentUserId={profile?.uid}
                 memberColors={memberColorMap}
               />
             </div>
@@ -407,7 +422,7 @@ export default function GroupDetailPage({
             </h3>
             <ul className="space-y-1">
               {group.members.map((m) => {
-                const isMe = m.uid === user?.uid;
+                const isMe = m.uid === profile?.uid;
                 const isPickerOpen = colorPickerOpenFor === m.uid;
                 return (
                   <li key={m.uid} className="rounded-lg">
@@ -428,17 +443,56 @@ export default function GroupDetailPage({
                           {m.role === "owner" ? "オーナー" : "メンバー"}
                         </span>
                         {isMe && (
-                          <button
-                            onClick={() =>
-                              setColorPickerOpenFor(isPickerOpen ? null : m.uid)
-                            }
-                            className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 rounded px-2 py-0.5"
-                          >
-                            色を変更
-                          </button>
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingName(m.displayName);
+                                setNameEditOpen((v) => !v);
+                                setColorPickerOpenFor(null);
+                              }}
+                              className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded px-2 py-0.5"
+                            >
+                              名前を変更
+                            </button>
+                            <button
+                              onClick={() => {
+                                setColorPickerOpenFor(isPickerOpen ? null : m.uid);
+                                setNameEditOpen(false);
+                              }}
+                              className="text-xs text-blue-500 hover:text-blue-700 border border-blue-200 rounded px-2 py-0.5"
+                            >
+                              色を変更
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
+                    {nameEditOpen && isMe && (
+                      <div className="px-3 pb-3 space-y-2">
+                        <p className="text-xs text-gray-400">このグループでの表示名</p>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          />
+                          <button
+                            onClick={handleNameSave}
+                            disabled={savingName || !editingName.trim()}
+                            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {savingName ? "保存中" : "保存"}
+                          </button>
+                          <button
+                            onClick={() => setNameEditOpen(false)}
+                            className="px-3 py-1.5 border border-gray-300 text-sm rounded-lg hover:bg-gray-50"
+                          >
+                            キャンセル
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {isPickerOpen && isMe && (
                       <div className="px-3 pb-3">
                         <p className="text-xs text-gray-400 mb-1">あなたの表示色を選んでください</p>
@@ -458,6 +512,5 @@ export default function GroupDetailPage({
           </div>
         </main>
       </div>
-    </AuthGuard>
   );
 }

@@ -82,6 +82,16 @@ export async function updateMemberColor(
   await updateDoc(doc(db, "groups", groupId), { members: updated });
 }
 
+export async function updateMemberDisplayName(
+  groupId: string,
+  uid: string,
+  displayName: string,
+  currentMembers: GroupMember[]
+): Promise<void> {
+  const updated = currentMembers.map((m) => (m.uid === uid ? { ...m, displayName } : m));
+  await updateDoc(doc(db, "groups", groupId), { members: updated });
+}
+
 export async function addTransaction(
   tx: Omit<Transaction, "id" | "createdAt">
 ): Promise<string> {

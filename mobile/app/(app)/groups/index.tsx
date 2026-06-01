@@ -10,51 +10,44 @@ import {
 } from "react-native";
 import { useEffect, useState } from "react";
 import { router, useNavigation } from "expo-router";
-import { useAuth } from "../../../hooks/useAuth";
+import { useProfile } from "../../../hooks/useProfile";
 import { getUserGroups, createGroup } from "../../../lib/firestore";
 import type { Group, GroupMember } from "../../../types";
 
 export default function GroupsScreen() {
-  const { user, logout } = useAuth();
+  const { profile } = useProfile();
   const navigation = useNavigation();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [ownerDisplayName, setOwnerDisplayName] = useState("");
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    navigation.setOptions({
-      title: "mitH",
-      headerRight: () => (
-        <TouchableOpacity onPress={handleLogout} style={{ marginRight: 4 }}>
-          <Text style={{ color: "#EF4444", fontSize: 14 }}>ログアウト</Text>
-        </TouchableOpacity>
-      ),
-    });
+    navigation.setOptions({ title: "mitH" });
   }, []);
 
   useEffect(() => {
-    if (!user) return;
-    getUserGroups(user.uid).then((gs) => {
+    if (profile) setOwnerDisplayName(profile.displayName);
+  }, [profile]);
+
+  useEffect(() => {
+    if (!profile) return;
+    getUserGroups(profile.uid).then((gs) => {
       setGroups(gs);
       setLoading(false);
     });
-  }, [user]);
-
-  const handleLogout = async () => {
-    await logout();
-    router.replace("/(auth)/login");
-  };
+  }, [profile]);
 
   const handleCreate = async () => {
-    if (!user || !name.trim()) return;
+    if (!profile || !name.trim()) return;
     setCreating(true);
     const owner: GroupMember = {
-      uid: user.uid,
-      displayName: user.displayName ?? user.email ?? "unknown",
-      email: user.email ?? "",
+      uid: profile.uid,
+      displayName: ownerDisplayName.trim() || profile.displayName,
+      email: "",
       role: "owner",
       joinedAt: new Date().toISOString(),
     };
@@ -66,7 +59,7 @@ export default function GroupsScreen() {
         name: name.trim(),
         description: description.trim(),
         members: [owner],
-        createdBy: user.uid,
+        createdBy: profile.uid,
         createdAt: new Date().toISOString(),
         currency: "JPY",
         inviteCode,
@@ -74,6 +67,7 @@ export default function GroupsScreen() {
     ]);
     setName("");
     setDescription("");
+    setOwnerDisplayName(profile.displayName);
     setShowCreate(false);
     setCreating(false);
   };
@@ -106,9 +100,7 @@ export default function GroupsScreen() {
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.cardName}>{item.name}</Text>
-              {item.description ? (
-                <Text style={styles.cardDesc}>{item.description}</Text>
-              ) : null}
+              {item.description ? <Text style={styles.cardDesc}>{item.description}</Text> : null}
             </View>
             <View style={styles.cardRight}>
               <Text style={styles.cardMeta}>{item.members.length}人</Text>
@@ -118,12 +110,8 @@ export default function GroupsScreen() {
         )}
       />
 
-      {/* Bottom action buttons */}
       <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.secondaryBtn}
-          onPress={() => router.push("/(app)/join")}
-        >
+        <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.push("/(app)/join")}>
           <Text style={styles.secondaryBtnText}>🔑 コードで参加</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowCreate(true)}>
@@ -131,7 +119,6 @@ export default function GroupsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Create modal */}
       <Modal visible={showCreate} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
@@ -148,11 +135,15 @@ export default function GroupsScreen() {
               value={description}
               onChangeText={setDescription}
             />
+            <Text style={styles.inputLabel}>このグループでの名前</Text>
+            <TextInput
+              style={styles.input}
+              placeholder={profile?.displayName ?? "名前"}
+              value={ownerDisplayName}
+              onChangeText={setOwnerDisplayName}
+            />
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setShowCreate(false)}
-              >
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowCreate(false)}>
                 <Text style={styles.cancelBtnText}>キャンセル</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -225,11 +216,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryBtnText: { color: "#fff", fontWeight: "600", fontSize: 14 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   modalBox: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
@@ -238,6 +225,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   modalTitle: { fontSize: 17, fontWeight: "700", color: "#1E293B", marginBottom: 16 },
+  inputLabel: { fontSize: 12, color: "#64748B", marginBottom: 4, marginTop: -4 },
   input: {
     borderWidth: 1,
     borderColor: "#E2E8F0",

@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useEffect, useState, useRef } from "react";
 import { useLocalSearchParams, useNavigation } from "expo-router";
-import { useAuth } from "../../../hooks/useAuth";
+import { useProfile } from "../../../hooks/useProfile";
 import {
   getGroup,
   getTransactions,
@@ -19,6 +19,7 @@ import {
   deleteTransaction,
   regenerateInviteCode,
   updateMemberColor,
+  updateMemberDisplayName,
 } from "../../../lib/firestore";
 import type { Group, Transaction, Category } from "../../../types";
 import { CATEGORY_LABELS, CATEGORY_ICONS } from "../../../types";
@@ -38,7 +39,7 @@ const EXPENSE_CATS: Category[] = [
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { profile } = useProfile();
   const navigation = useNavigation();
 
   const [group, setGroup] = useState<Group | null>(null);
@@ -64,17 +65,22 @@ export default function GroupDetailScreen() {
   // Color picker
   const [colorTarget, setColorTarget] = useState<string | null>(null);
 
+  // Name edit
+  const [nameEditOpen, setNameEditOpen] = useState(false);
+  const [editingName, setEditingName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+
   const listRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    if (!user || !id) return;
+    if (!profile || !id) return;
     Promise.all([getGroup(id), getTransactions(id, selectedMonth)]).then(([g, txs]) => {
       setGroup(g);
       setTransactions(txs);
       setLoading(false);
       navigation.setOptions({ title: g?.name ?? "グループ" });
     });
-  }, [id, user, selectedMonth]);
+  }, [id, profile, selectedMonth]);
 
   const totalIncome = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpense = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
@@ -95,7 +101,7 @@ export default function GroupDetailScreen() {
     }, {});
 
   const handleAddTx = async () => {
-    if (!user || !group || !txAmount) return;
+    if (!profile || !group || !txAmount) return;
     setSaving(true);
     try {
       const txId = await addTransaction({
@@ -105,8 +111,8 @@ export default function GroupDetailScreen() {
         description: txDesc,
         date: txDate,
         groupId: id,
-        createdBy: user.uid,
-        createdByName: user.displayName ?? user.email ?? "unknown",
+        createdBy: profile.uid,
+        createdByName: profile.displayName ?? "unknown",
       });
       setTransactions((prev) => [
         {
@@ -117,8 +123,8 @@ export default function GroupDetailScreen() {
           description: txDesc,
           date: txDate,
           groupId: id,
-          createdBy: user.uid,
-          createdByName: user.displayName ?? user.email ?? "unknown",
+          createdBy: profile.uid,
+          createdByName: profile.displayName ?? "unknown",
           createdAt: new Date().toISOString(),
         },
         ...prev,
@@ -154,12 +160,23 @@ export default function GroupDetailScreen() {
   };
 
   const handleColorChange = async (color: string) => {
-    if (!user || !group) return;
-    await updateMemberColor(id, user.uid, color, group.members);
+    if (!profile || !group) return;
+    await updateMemberColor(id, profile.uid, color, group.members);
     setGroup((prev) =>
-      prev ? { ...prev, members: prev.members.map((m) => m.uid === user.uid ? { ...m, color } : m) } : prev
+      prev ? { ...prev, members: prev.members.map((m) => m.uid === profile.uid ? { ...m, color } : m) } : prev
     );
     setColorTarget(null);
+  };
+
+  const handleNameSave = async () => {
+    if (!profile || !group || !editingName.trim()) return;
+    setSavingName(true);
+    await updateMemberDisplayName(id, profile.uid, editingName.trim(), group.members);
+    setGroup((prev) =>
+      prev ? { ...prev, members: prev.members.map((m) => m.uid === profile.uid ? { ...m, displayName: editingName.trim() } : m) } : prev
+    );
+    setSavingName(false);
+    setNameEditOpen(false);
   };
 
   const scrollToList = () => {
@@ -176,7 +193,7 @@ export default function GroupDetailScreen() {
   }
   if (!group) return <View style={styles.center}><Text>グループが見つかりません</Text></View>;
 
-  const isOwner = user?.uid === group.createdBy;
+  const isOwner = profile?.uid === group.createdBy;
   const cats = txType === "income" ? INCOME_CATS : EXPENSE_CATS;
 
   return (
@@ -279,7 +296,7 @@ export default function GroupDetailScreen() {
                     <Text style={[styles.txAmount, tx.type === "income" ? styles.incomeColor : styles.expenseColor]}>
                       {tx.type === "income" ? "+" : "-"}{tx.amount.toLocaleString("ja-JP")}円
                     </Text>
-                    {tx.createdBy === user?.uid && (
+                    {tx.createdBy === profile?.uid && (
                       <TouchableOpacity onPress={() => handleDelete(tx.id)}>
                         <Text style={styles.deleteBtn}>削除</Text>
                       </TouchableOpacity>
@@ -352,20 +369,58 @@ export default function GroupDetailScreen() {
               <View style={styles.memberRow}>
                 <Text style={[styles.memberRowName, m.color ? { color: m.color } : null]}>
                   {m.displayName}
-                  {m.uid === user?.uid && <Text style={styles.meLabel}> (自分)</Text>}
+                  {m.uid === profile?.uid && <Text style={styles.meLabel}> (自分)</Text>}
                 </Text>
                 <View style={styles.memberRowRight}>
                   <Text style={styles.roleLabel}>{m.role === "owner" ? "オーナー" : "メンバー"}</Text>
-                  {m.uid === user?.uid && (
-                    <TouchableOpacity
-                      style={styles.colorChangeBtn}
-                      onPress={() => setColorTarget(colorTarget === m.uid ? null : m.uid)}
-                    >
-                      <Text style={styles.colorChangeBtnText}>色を変更</Text>
-                    </TouchableOpacity>
+                  {m.uid === profile?.uid && (
+                    <>
+                      <TouchableOpacity
+                        style={styles.nameChangeBtn}
+                        onPress={() => {
+                          setEditingName(m.displayName);
+                          setNameEditOpen((v) => !v);
+                          setColorTarget(null);
+                        }}
+                      >
+                        <Text style={styles.nameChangeBtnText}>名前を変更</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.colorChangeBtn}
+                        onPress={() => {
+                          setColorTarget(colorTarget === m.uid ? null : m.uid);
+                          setNameEditOpen(false);
+                        }}
+                      >
+                        <Text style={styles.colorChangeBtnText}>色を変更</Text>
+                      </TouchableOpacity>
+                    </>
                   )}
                 </View>
               </View>
+              {nameEditOpen && m.uid === profile?.uid && (
+                <View style={styles.nameEditRow}>
+                  <TextInput
+                    style={styles.nameEditInput}
+                    value={editingName}
+                    onChangeText={setEditingName}
+                    placeholder="表示名"
+                  />
+                  <TouchableOpacity
+                    style={[styles.nameEditSaveBtn, (!editingName.trim() || savingName) && { opacity: 0.5 }]}
+                    onPress={handleNameSave}
+                    disabled={!editingName.trim() || savingName}
+                  >
+                    <Text style={styles.nameEditSaveBtnText}>{savingName ? "…" : "保存"}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.nameEditCancelBtn}
+                    onPress={() => setNameEditOpen(false)}
+                  >
+                    <Text style={styles.nameEditCancelBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {colorTarget === m.uid && (
                 <View style={styles.palette}>
                   {COLORS.map((c) => (
@@ -581,6 +636,40 @@ const styles = StyleSheet.create({
   meLabel: { fontSize: 12, color: "#94A3B8", fontWeight: "400" },
   memberRowRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   roleLabel: { fontSize: 12, color: "#94A3B8" },
+  nameChangeBtn: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  nameChangeBtnText: { fontSize: 12, color: "#64748B" },
+  nameEditRow: { flexDirection: "row", gap: 6, paddingBottom: 8, alignItems: "center" },
+  nameEditInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 14,
+    backgroundColor: "#F8FAFC",
+  },
+  nameEditSaveBtn: {
+    backgroundColor: "#2563EB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  nameEditSaveBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  nameEditCancelBtn: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  nameEditCancelBtnText: { color: "#94A3B8", fontSize: 13 },
   colorChangeBtn: {
     borderWidth: 1,
     borderColor: "#BFDBFE",

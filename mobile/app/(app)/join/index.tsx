@@ -10,14 +10,14 @@ import {
 } from "react-native";
 import { useState } from "react";
 import { router } from "expo-router";
-import { useAuth } from "../../../hooks/useAuth";
+import { useProfile } from "../../../hooks/useProfile";
 import { getGroupByInviteCode, addMemberToGroup } from "../../../lib/firestore";
 import type { GroupMember } from "../../../types";
 
 type Step = "input" | "confirm" | "done";
 
 export default function JoinScreen() {
-  const { user } = useAuth();
+  const { profile } = useProfile();
   const [code, setCode] = useState("");
   const [step, setStep] = useState<Step>("input");
   const [error, setError] = useState("");
@@ -25,22 +25,21 @@ export default function JoinScreen() {
   const [foundId, setFoundId] = useState("");
   const [foundName, setFoundName] = useState("");
   const [alreadyMember, setAlreadyMember] = useState(false);
+  const [groupDisplayName, setGroupDisplayName] = useState("");
 
   const normalizeCode = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
   const handleLookup = async () => {
-    if (!user || code.length < 8) return;
+    if (!profile || code.length < 8) return;
     setError("");
     setLoading(true);
     try {
       const group = await getGroupByInviteCode(code);
-      if (!group) {
-        setError("招待コードが見つかりません");
-        return;
-      }
+      if (!group) { setError("招待コードが見つかりません"); return; }
       setFoundId(group.id);
       setFoundName(group.name);
-      setAlreadyMember(group.members.some((m) => m.uid === user.uid));
+      setAlreadyMember(group.members.some((m) => m.uid === profile.uid));
+      setGroupDisplayName(profile.displayName);
       setStep("confirm");
     } finally {
       setLoading(false);
@@ -48,15 +47,15 @@ export default function JoinScreen() {
   };
 
   const handleJoin = async () => {
-    if (!user) return;
+    if (!profile) return;
     setLoading(true);
     try {
       const group = await getGroupByInviteCode(code);
       if (!group) { setError("グループが見つかりません"); setStep("input"); return; }
       const newMember: GroupMember = {
-        uid: user.uid,
-        displayName: user.displayName ?? user.email ?? "unknown",
-        email: user.email ?? "",
+        uid: profile.uid,
+        displayName: groupDisplayName.trim() || profile.displayName,
+        email: "",
         role: "member",
         joinedAt: new Date().toISOString(),
       };
@@ -114,21 +113,30 @@ export default function JoinScreen() {
                 </TouchableOpacity>
               </>
             ) : (
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => { setStep("input"); setError(""); }}
-                >
-                  <Text style={styles.cancelBtnText}>戻る</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.btn, { flex: 1 }, loading && styles.btnDisabled]}
-                  onPress={handleJoin}
-                  disabled={loading}
-                >
-                  {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>参加する</Text>}
-                </TouchableOpacity>
-              </View>
+              <>
+                <View style={styles.nameField}>
+                  <Text style={styles.nameLabel}>このグループでの名前</Text>
+                  <TextInput
+                    style={styles.nameInput}
+                    value={groupDisplayName}
+                    onChangeText={setGroupDisplayName}
+                    placeholder={profile?.displayName ?? "名前"}
+                  />
+                  <Text style={styles.nameHint}>グループ内での表示名です。後から変更できます。</Text>
+                </View>
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={() => { setStep("input"); setError(""); }}>
+                    <Text style={styles.cancelBtnText}>戻る</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.btn, { flex: 1 }, loading && styles.btnDisabled]}
+                    onPress={handleJoin}
+                    disabled={loading}
+                  >
+                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>参加する</Text>}
+                  </TouchableOpacity>
+                </View>
+              </>
             )}
           </>
         )}
@@ -170,6 +178,20 @@ const styles = StyleSheet.create({
     fontFamily: "monospace",
   },
   error: { color: "#EF4444", fontSize: 13, marginBottom: 12 },
+  nameField: { width: "100%", marginBottom: 20 },
+  nameLabel: { fontSize: 13, fontWeight: "600", color: "#475569", marginBottom: 6 },
+  nameInput: {
+    width: "100%",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: "#1E293B",
+    backgroundColor: "#fff",
+  },
+  nameHint: { fontSize: 11, color: "#94A3B8", marginTop: 4 },
   btn: {
     width: "100%",
     backgroundColor: "#2563EB",
